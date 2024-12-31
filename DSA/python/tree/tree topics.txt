@@ -1,0 +1,156 @@
+Here's a **step-by-step study plan** for learning Trees in DSA. This plan is divided into weeks to help you focus and build concepts progressively. Each week includes topics, suggested implementations, and practice ideas.
+
+---
+
+### **Week 1: Fundamentals of Trees**
+**Topics to Learn:**
+1. Introduction to Trees:
+   - Definition, terminologies (root, parent, child, leaf, etc.).
+   - Properties and applications of trees.
+2. Types of Trees:
+   - General Tree.
+   - Binary Tree and its variants (Full, Complete, Perfect, Skewed).
+
+**Tasks:**
+- Implement a basic tree structure.
+- Write code to display a tree hierarchy.
+
+**Practice:**
+- Visualize tree structures (small examples).
+- Draw tree diagrams for various examples.
+
+---
+
+### **Week 2: Tree Traversals**
+**Topics to Learn:**
+1. Tree Traversal Techniques:
+   - Depth-First Search (DFS): Preorder, Inorder, Postorder.
+   - Breadth-First Search (BFS): Level Order Traversal.
+
+**Tasks:**
+- Implement traversal methods for binary trees.
+- Compare recursion vs. iterative traversal techniques.
+
+**Practice:**
+- Solve problems that require tree traversals:
+  - Print nodes at a given level.
+  - Print all leaf nodes.
+
+---
+
+### **Week 3: Binary Search Tree (BST)**
+**Topics to Learn:**
+1. Binary Search Tree:
+   - Properties and characteristics.
+   - Operations: Insertion, Deletion, Search.
+
+**Tasks:**
+- Implement a Binary Search Tree from scratch.
+- Write functions for insertion, deletion, and search.
+
+**Practice:**
+- Solve problems:
+  - Find the minimum and maximum elements in a BST.
+  - Check if a given tree is a BST.
+
+---
+
+### **Week 4: Balanced Trees**
+**Topics to Learn:**
+1. AVL Tree:
+   - Rotations (Left, Right, Left-Right, Right-Left).
+   - Insertion and Deletion in AVL Trees.
+2. Red-Black Tree (basic understanding).
+
+**Tasks:**
+- Implement an AVL Tree and handle rotations.
+- Explore Red-Black Tree logic (focus on understanding).
+
+**Practice:**
+- Problems on AVL Trees:
+  - Insert and balance nodes in an AVL Tree.
+
+---
+
+### **Week 5: Advanced Tree Variants**
+**Topics to Learn:**
+1. Heaps:
+   - Min-Heap, Max-Heap.
+   - Heapify, Insert, Delete.
+2. Tries:
+   - Prefix Tree for string operations.
+
+**Tasks:**
+- Implement a Min-Heap and Max-Heap.
+- Build a Trie for word search.
+
+**Practice:**
+- Problems:
+  - Find Kth smallest/largest element using heaps.
+  - Search and autocomplete in a Trie.
+
+---
+
+### **Week 6: Tree Algorithms**
+**Topics to Learn:**
+1. Lowest Common Ancestor (LCA).
+2. Tree Diameter.
+3. Height-Balanced Tree Check.
+
+**Tasks:**
+- Implement algorithms for:
+  - Finding the LCA of two nodes.
+  - Computing the height of a tree.
+  - Checking if a tree is height-balanced.
+
+**Practice:**
+- Solve problems:
+  - Find the diameter of a binary tree.
+  - Check if a binary tree is balanced.
+
+---
+
+### **Week 7: Advanced Topics**
+**Topics to Learn:**
+1. Tree Construction Problems:
+   - Construct tree from inorder and preorder.
+   - Construct tree from inorder and postorder.
+2. Segment Tree and Fenwick Tree (Binary Indexed Tree).
+
+**Tasks:**
+- Implement a segment tree for range queries.
+- Implement a Fenwick Tree for prefix sums.
+
+**Practice:**
+- Solve problems on:
+  - Tree construction from traversals.
+  - Range queries using segment trees.
+
+---
+
+### **Week 8: Special Topics**
+**Topics to Learn:**
+1. Binary Tree Views:
+   - Top View, Bottom View, Left View, Right View.
+2. Tree Serialization and Deserialization.
+3. Morris Traversal.
+
+**Tasks:**
+- Implement code for each type of binary tree view.
+- Practice serialization and deserialization logic.
+
+**Practice:**
+- Solve problems on:
+  - Printing binary tree views.
+  - Traversals without recursion.
+
+---
+
+### Daily Commitment:
+- **Study Time:** 1-2 hours/day.
+- **Practice:** Solve at least 3-5 problems after learning a concept.
+- Use platforms like [LeetCode](https://leetcode.com), [GeeksforGeeks](https://www.geeksforgeeks.org), or [Codeforces](https://codeforces.com).
+
+---
+
+Would you like resources or problem suggestions for any specific week?

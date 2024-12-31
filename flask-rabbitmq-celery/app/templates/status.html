@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Status</title>
+    <script>
+        async function fetchStatus(taskId) {
+            const response = await fetch(`/result/${taskId}`);
+            const data = await response.json();
+            document.getElementById("status").innerText = `Status: ${data.status}`;
+            if (data.result) {
+                document.getElementById("result").innerText = `Result: ${data.result}`;
+            }
+            if (data.status !== "SUCCESS" && data.status !== "FAILURE") {
+                setTimeout(() => fetchStatus(taskId), 2000); // Poll every 2 seconds
+            }
+        }
+        window.onload = () => {
+            const taskId = document.getElementById("taskId").innerText;
+            fetchStatus(taskId);
+        };
+    </script>
+</head>
+<body>
+    <h1>Task Status</h1>
+    <p>Task ID: <span id="taskId">{{ task_id }}</span></p>
+    <p id="status">Fetching status...</p>
+    <p id="result"></p>
+</body>
+</html>
