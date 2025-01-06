@@ -14,7 +14,7 @@ def process_data(data):
     Simulate processing data.
     """
     print(f"Processing: {data}")
-    time.sleep(10)  # Simulate a long-running task
+    time.sleep(60)  # Simulate a long-running task
     result = f"Processed data: {data}"
     print(result)
     return result

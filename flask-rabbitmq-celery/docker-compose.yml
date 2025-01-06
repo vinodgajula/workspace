@@ -31,3 +31,5 @@ services:
 
   redis:
     image: "redis:6.0"
+    volumes:
+      - ./redis-data:/data  # Mount host directory to Redis data directory

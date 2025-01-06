@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CRUD App</title>
+</head>
+<body>
+    <h1>CRUD Application</h1>
+    <form action="/create" method="post">
+        <input type="text" name="name" placeholder="Name" required>
+        <textarea name="description" placeholder="Description" required></textarea>
+        <button type="submit">Create</button>
+    </form>
+    <ul>
+        {% for item in items %}
+        <li>
+            <form action="/update/{{ item[0] }}" method="post">
+                <input type="text" name="name" value="{{ item[1] }}" required>
+                <textarea name="description" required>{{ item[2] }}</textarea>
+                <button type="submit">Update</button>
+            </form>
+            <a href="/delete/{{ item[0] }}">Delete</a>
+        </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
