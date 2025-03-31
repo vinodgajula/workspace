@@ -1,0 +1,816 @@
+=== ChatAppApplication.java ===
+package com.chatapp;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.data.cassandra.repository.config.EnableCassandraRepositories;
+
+@SpringBootApplication
+@EnableCassandraRepositories  // ✅ Required for Cassandra repositories
+public class ChatAppApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(ChatAppApplication.class, args);
+    }
+}
+
+
+=== CassandraConfig.java ===
+package com.chatapp.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.cassandra.config.AbstractCassandraConfiguration;
+
+@Configuration
+public class CassandraConfig extends AbstractCassandraConfiguration {
+
+    @Value("${spring.cassandra.keyspace-name}")
+    private String keyspace;
+
+    @Value("${spring.cassandra.contact-points}")
+    private String contactPoints;
+
+    @Value("${spring.cassandra.port}")
+    private int port;
+
+    @Override
+    protected String getKeyspaceName() {
+        return keyspace;
+    }
+
+    @Override
+    protected String getContactPoints() {
+        return contactPoints;
+    }
+
+    @Override
+    protected int getPort() {
+        return port;
+    }
+
+    @Override
+    protected String getLocalDataCenter() {
+        return "datacenter1"; // Required for Cassandra 4.x+
+    }
+}
+
+
+=== KafkaConfig.java ===
+package com.chatapp.config;
+
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.core.*;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@Configuration
+public class KafkaConfig {
+
+    @Value("${spring.kafka.bootstrap-servers}")
+    private String bootstrapServers;
+
+    private static final String TOPIC_NAME = "chat-messages";
+
+    @Bean
+    public NewTopic chatTopic() {
+        return new NewTopic(TOPIC_NAME, 1, (short) 1);
+    }
+
+    @Bean
+    public ProducerFactory<String, String> producerFactory() {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        return new DefaultKafkaProducerFactory<>(config);
+    }
+
+    @Bean
+    public KafkaTemplate<String, String> kafkaTemplate() {
+        return new KafkaTemplate<>(producerFactory());
+    }
+
+    @Bean
+    public ConsumerFactory<String, String> consumerFactory() {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(ConsumerConfig.GROUP_ID_CONFIG, "chat-group");
+        config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        return new DefaultKafkaConsumerFactory<>(config);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, String> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory());
+        return factory;
+    }
+}
+
+
+=== PasswordEncoderConfig.java ===
+package com.chatapp.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@Configuration
+public class PasswordEncoderConfig {
+    
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+}
+
+=== SecurityConfig.java ===
+package com.chatapp.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.chatapp.security.JwtFilter;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    private static final String[] SWAGGER_WHITELIST = {
+        "/swagger-ui/**",
+        "/v3/api-docs/**",
+        "/swagger-resources/**",
+        "/swagger-resources",
+        "/webjars/**",
+        "/swagger-ui.html",       // Explicitly allow HTML page
+        "/swagger-ui/index.html", // Required for SpringDoc 2.x+
+        "/favicon.ico"           // Allow favicon
+    };
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtFilter jwtFilter) throws Exception {
+        http
+            // New way to disable CSRF (non-deprecated)
+            .csrf(csrf -> csrf.disable())
+            
+            // Modern authorization syntax
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/auth/**").permitAll()
+                .requestMatchers(SWAGGER_WHITELIST).permitAll()
+                .anyRequest().authenticated()
+            )
+            
+            // Add JWT filter
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+        return authConfig.getAuthenticationManager();
+    }
+}
+
+=== SwaggerConfig.java ===
+package com.chatapp.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import io.swagger.v3.oas.models.Components;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
+
+@Configuration
+public class SwaggerConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+                .info(new Info().title("Chat App API").version("1.0"))
+                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
+                .components(new Components()
+                        .addSecuritySchemes("bearerAuth", 
+                                new SecurityScheme()
+                                        .name("bearerAuth")
+                                        .type(SecurityScheme.Type.HTTP)
+                                        .scheme("bearer")
+                                        .bearerFormat("JWT")));
+    }
+}
+
+=== SwaggerUIConfig.java ===
+package com.chatapp.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class SwaggerUIConfig implements WebMvcConfigurer {
+    
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/swagger-ui/**")
+                .addResourceLocations("classpath:/META-INF/resources/webjars/springfox-swagger-ui/")
+                .resourceChain(false);
+    }
+}
+
+=== AuthController.java ===
+package com.chatapp.controller;
+
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import com.chatapp.model.User;
+import com.chatapp.security.JwtUtil;
+import com.chatapp.service.UserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+@RestController
+@RequestMapping("/auth")
+public class AuthController {
+
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @PostMapping("/register")
+    public ResponseEntity<String> register(@RequestBody User user) {
+        logger.info("Attempting to register user: {}", user.getUsername());
+
+        String result = userService.registerUser(user);
+
+        if (result.equals("Username already exists!")) {
+            logger.warn("Registration failed: Username {} already exists", user.getUsername());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(result);
+        }
+
+        logger.info("User {} registered successfully", user.getUsername());
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody User user) {
+        logger.info("Login attempt for user: {}", user.getUsername());
+
+        try {
+            authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword())
+            );
+
+            UserDetails userDetails = userService.loadUserByUsername(user.getUsername()); // ✅ Fix here
+            String token = jwtUtil.generateToken(userDetails.getUsername());
+
+            logger.info("User {} logged in successfully", user.getUsername());
+            return ResponseEntity.ok(Map.of("token", token));
+        } catch (BadCredentialsException e) {
+            logger.error("Login failed for user {}: Invalid credentials", user.getUsername());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
+        } catch (Exception e) {
+            logger.error("An unexpected error occurred during login for user {}: {}", user.getUsername(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred. Please try again.");
+        }
+    }
+}
+
+
+=== ChatController.java ===
+package com.chatapp.controller;
+
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.chatapp.model.Message;
+import com.chatapp.service.MessageService;
+
+@RestController
+@RequestMapping("/chat")
+public class ChatController {
+
+    private static final Logger logger = LoggerFactory.getLogger(ChatController.class);
+
+    @Autowired
+    private MessageService messageService;
+
+    @PostMapping("/send")
+    public String sendMessage(@RequestBody Message message) {
+        logger.info("Sending message from '{}' to '{}'", message.getSender(), message.getReceiver());
+        messageService.sendMessage(message);
+        logger.info("Message sent successfully");
+        return "Message Sent!";
+    }
+
+    @GetMapping("/messages")
+    public List<Message> getMessages(
+            @RequestParam String user1,
+            @RequestParam String user2) {
+        logger.info("Fetching messages between '{}' and '{}'", user1, user2);
+        List<Message> messages = messageService.getMessagesBetween(user1, user2);
+        logger.info("Fetched {} messages", messages.size());
+        return messages;
+    }
+}
+
+
+=== Message.java ===
+package com.chatapp.model;
+
+import java.util.UUID;
+
+import org.springframework.data.cassandra.core.mapping.Column;
+import org.springframework.data.cassandra.core.mapping.PrimaryKeyColumn;
+import org.springframework.data.cassandra.core.mapping.Table;
+import org.springframework.data.cassandra.core.cql.PrimaryKeyType;
+import org.springframework.data.cassandra.core.cql.Ordering;
+
+@Table("messages")
+public class Message {
+
+    @PrimaryKeyColumn(name = "sender", type = PrimaryKeyType.PARTITIONED)
+    private String sender;
+
+    @PrimaryKeyColumn(name = "receiver", type = PrimaryKeyType.PARTITIONED)
+    private String receiver;
+
+    @PrimaryKeyColumn(name = "timestamp", ordinal = 0, type = PrimaryKeyType.CLUSTERED, ordering = Ordering.ASCENDING)
+    private long timestamp;
+
+    @Column("id")
+    private UUID id = UUID.randomUUID();
+
+    @Column("content")
+    private String content;
+
+    @Column("status")
+    private MessageStatus status = MessageStatus.SENT;
+
+    public Message() {}
+
+    public Message(String sender, String receiver, long timestamp, String content) {
+        this.sender = sender;
+        this.receiver = receiver;
+        this.timestamp = timestamp;
+        this.content = content;
+        this.id = UUID.randomUUID();
+        this.status = MessageStatus.SENT;
+    }
+
+    // Getters and Setters
+    public String getSender() { return sender; }
+    public void setSender(String sender) { this.sender = sender; }
+
+    public String getReceiver() { return receiver; }
+    public void setReceiver(String receiver) { this.receiver = receiver; }
+
+    public long getTimestamp() { return timestamp; }
+    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
+
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
+
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
+
+    public MessageStatus getStatus() { return status; }
+    public void setStatus(MessageStatus status) { this.status = status; }
+}
+
+
+=== MessageStatus.java ===
+package com.chatapp.model;
+
+public enum MessageStatus {
+    SENT,
+    DELIVERED,
+    READ
+}
+
+
+=== User.java ===
+package com.chatapp.model;
+
+import java.util.Collection;
+import java.util.Collections;
+
+import org.springframework.data.cassandra.core.mapping.PrimaryKey;
+import org.springframework.data.cassandra.core.mapping.Table;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+@Table("users")
+public class User implements UserDetails {
+    private static final long serialVersionUID = 1L;  // Add this line
+	
+    @PrimaryKey
+    private String id;
+    private String username;
+    private String email;
+    private String password;
+    private String role;  // "USER" or "ADMIN"
+
+    public User() {}
+
+    public User(String id, String username, String email, String password, String role) {
+        this.id = id;
+        this.username = username;
+        this.email = email;
+        this.password = password;
+        this.role = role;
+    }
+
+    // Getters & Setters
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
+
+    public String getUsername() { return username; }
+    public void setUsername(String username) { this.username = username; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
+
+    // UserDetails Implementation
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + this.role));
+    }
+
+    @Override
+    public boolean isAccountNonExpired() { return true; }
+
+    @Override
+    public boolean isAccountNonLocked() { return true; }
+
+    @Override
+    public boolean isCredentialsNonExpired() { return true; }
+
+    @Override
+    public boolean isEnabled() { return true; }
+}
+
+
+=== MessageRepository.java ===
+package com.chatapp.repository;
+
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.data.cassandra.repository.CassandraRepository;
+import org.springframework.stereotype.Repository;
+
+import com.chatapp.model.Message;
+
+@Repository
+public interface MessageRepository extends CassandraRepository<Message, UUID> {
+    List<Message> findBySenderAndReceiver(String sender, String receiver);
+
+    // Optional: find messages between a timestamp range
+    List<Message> findBySenderAndReceiverAndTimestampGreaterThanEqualAndTimestampLessThanEqual(
+        String sender, String receiver, long start, long end);
+}
+
+
+=== UserRepository.java ===
+package com.chatapp.repository;
+
+import java.util.Optional;
+
+import org.springframework.data.cassandra.repository.CassandraRepository;
+import org.springframework.stereotype.Repository;
+
+import com.chatapp.model.User;
+
+@Repository
+public interface UserRepository extends CassandraRepository<User, String> {
+    Optional<User> findByUsername(String username);
+}
+
+
+=== JwtFilter.java ===
+package com.chatapp.security;
+
+import java.io.IOException;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import com.chatapp.service.UserService;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+@Component
+public class JwtFilter extends OncePerRequestFilter {
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @Autowired
+    private UserService userService;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+            throws ServletException, IOException {
+
+        String token = request.getHeader("Authorization");
+
+        if (token != null && token.startsWith("Bearer ")) {
+            token = token.substring(7);
+            String username = jwtUtil.extractUsername(token);
+
+            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UserDetails userDetails = userService.findByUsername(username).orElse(null);
+
+                if (userDetails != null && jwtUtil.validateToken(token, userDetails.getUsername())) {
+                    SecurityContextHolder.getContext().setAuthentication(
+                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities()));
+                }
+            }
+        }
+        chain.doFilter(request, response);
+    }
+}
+
+
+=== JwtUtil.java ===
+package com.chatapp.security;
+
+import java.util.Date;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
+import java.security.Key;
+import java.util.function.Function;
+import org.springframework.stereotype.Component;
+import jakarta.annotation.PostConstruct; // ✅ Use Jakarta package
+
+@Component
+public class JwtUtil {
+
+    private Key secretKey;
+
+    @PostConstruct
+    public void init() {
+        // Generate a secure HS256 key
+        this.secretKey = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+    }
+
+    public String generateToken(String username) {
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10 hours validity
+                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public boolean validateToken(String token, String username) {
+        return extractUsername(token).equals(username) && !isTokenExpired(token);
+    }
+
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
+
+    public Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
+    }
+
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(secretKey)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+        return claimsResolver.apply(claims);
+    }
+
+    private boolean isTokenExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
+}
+
+
+=== KafkaConsumer.java ===
+package com.chatapp.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Service;
+
+import com.chatapp.model.Message;
+import com.chatapp.model.MessageStatus;
+import com.chatapp.repository.MessageRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+@Service
+public class KafkaConsumer {
+
+    private static final Logger logger = LoggerFactory.getLogger(KafkaConsumer.class);
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private MessageRepository messageRepository;
+
+    @KafkaListener(topics = "chat-messages", groupId = "chat-group")
+    public void consume(String jsonMessage) {
+        try {
+            Message message = objectMapper.readValue(jsonMessage, Message.class);
+
+            logger.info("📩 Received message from '{}' to '{}': {}", message.getSender(), message.getReceiver(), message.getContent());
+
+            message.setStatus(MessageStatus.DELIVERED);
+            messageRepository.save(message);
+
+        } catch (Exception e) {
+            logger.error("❌ Error processing message: ", e);
+        }
+    }
+}
+
+
+=== KafkaProducer.java ===
+package com.chatapp.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Service;
+
+import com.chatapp.model.Message;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+@Service
+public class KafkaProducer {
+    private static final String TOPIC = "chat-messages";
+
+    @Autowired
+    private KafkaTemplate<String, String> kafkaTemplate;
+    
+    @Autowired
+    private ObjectMapper objectMapper;
+    
+    public void sendMessage(Message message) {
+        try {
+            String json = objectMapper.writeValueAsString(message);
+            kafkaTemplate.send(TOPIC, json);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+    }
+}    
+
+
+=== MessageService.java ===
+package com.chatapp.service;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.chatapp.model.Message;
+import com.chatapp.repository.MessageRepository;
+
+@Service
+public class MessageService {
+
+    @Autowired
+    private MessageRepository messageRepository;
+
+    @Autowired
+    private KafkaProducer kafkaProducer;
+    
+    public void sendMessage(Message message) {
+        kafkaProducer.sendMessage(message);
+        messageRepository.save(message);
+    }
+
+    public List<Message> getMessagesBetween(String user1, String user2) {
+        List<Message> list1 = messageRepository.findBySenderAndReceiver(user1, user2);
+        List<Message> list2 = messageRepository.findBySenderAndReceiver(user2, user1);
+    
+        List<Message> allMessages = new ArrayList<>();
+        allMessages.addAll(list1);
+        allMessages.addAll(list2);
+    
+        // Optional: sort messages by timestamp 
+        allMessages.sort(Comparator.comparingLong(Message::getTimestamp));
+        return allMessages;
+    }
+}
+
+
+=== UserService.java ===
+package com.chatapp.service;
+
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import com.chatapp.model.User;
+import com.chatapp.repository.UserRepository;
+
+@Service
+public class UserService implements UserDetailsService {
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    public String registerUser(User user) {
+        Optional<User> existingUser = userRepository.findByUsername(user.getUsername());
+        if (existingUser.isPresent()) {
+            return "Username already exists!";
+        }
+
+        user.setId(UUID.randomUUID().toString());
+        user.setPassword(passwordEncoder.encode(user.getPassword()));  // Hash password
+        userRepository.save(user);
+        return "User registered successfully!";
+    }
+
+    public Optional<User> findByUsername(String username) {
+        return userRepository.findByUsername(username);
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+    }
+}

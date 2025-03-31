@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0  # Use the latest MySQL 8 image
+    container_name: mysql_container
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password  # Change this
+      MYSQL_DATABASE: mydatabase          # Default database
+      MYSQL_USER: myuser                   # Custom user
+      MYSQL_PASSWORD: mypassword           # Custom user password
+    ports:
+      - "3306:3306"  # Expose MySQL on localhost
+    volumes:
+      - mysql_data:/var/lib/mysql  # Persist database data
+    networks:
+      - mysql_network
+
+volumes:
+  mysql_data:
+
+networks:
+  mysql_network:
+    driver: bridge

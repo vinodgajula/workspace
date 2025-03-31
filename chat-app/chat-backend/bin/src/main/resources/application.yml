@@ -1,0 +1,15 @@
+server:
+  port: 8080
+
+spring:
+  kafka:
+    bootstrap-servers: kafka:9092
+  cassandra:
+    keyspace-name: chat_app
+    contact-points: cassandra
+    port: 9042
+    schema-action: create-if-not-exists
+  security:
+    user:
+      name: admin
+      password: admin123

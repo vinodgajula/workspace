@@ -1,0 +1,11 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+                           http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <!-- Definition of GreetingService bean -->
+    <bean id="greetingService" class="com.example.GreetingServiceImpl" init-method="init" destroy-method="destroy">
+        <!-- Setter-based dependency injection -->
+        <property name="greetingMessage" value="Hello from XML Config!"/>
+    </bean>
+</beans>

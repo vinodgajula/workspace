@@ -1,0 +1,24 @@
+server:
+  port: 8080
+
+spring:
+  kafka:
+    bootstrap-servers: kafka:9092
+  cassandra:
+    keyspace-name: chat_app
+    contact-points: cassandra
+    port: 9042
+    schema-action: create-if-not-exists
+  security:
+    user:
+      name: admin
+      password: admin123
+jwt:
+  secret: mySecretKey123456
+  expiration: 86400000  # Token validity in ms (1 day)
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    doc-expansion: none
